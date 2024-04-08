@@ -22,6 +22,6 @@ Pour utiliser ce package, suivez ces étapes d'installation.
 3. Vous pouvez ensuite commencer à jouer en utilisant la commande suivante :
 
     ```R
-    library(Pic)
+    library(PIC)
     lance()
     ```
