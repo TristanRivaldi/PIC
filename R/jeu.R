@@ -261,5 +261,265 @@ lance <- function() {
         style = "display: flex; justify-content: flex-start; margin-left: 4px;"
       )
     })
+    observe({
+      gridSize <- input$gridSize
 
+      tryCatch({
+        lapply(1:min(gridSize, ncol(values$grid2)), function(col) {
+          output[[paste0("countTextRowGrid1_", col)]] <- renderText({
+            if (col <= ncol(values$grid2)) {
+              col_info <- countGroups(values$grid2[, col])
+              count_cells_in_groups <- col_info$count_cells_in_groups
+
+              if (length(count_cells_in_groups) > 0) {
+                paste(count_cells_in_groups, collapse = "-")
+              } else {
+                "0"
+              }
+            } else {
+              ""
+            }
+          })
+        })
+      }, error = function(e) {
+        print(paste("Erreur dans la boucle observe :", e$message))
+      })
+    })
+
+    output$gridOutput2 <- renderUI({
+      gridSize <- input$gridSize
+
+      if (!values$revealState) {
+        return(NULL)
+      }
+
+      columnSums <- colSums(values$grid2)
+
+      div(
+        div(
+          id = "countColumnSum",
+          class = "count-column",
+          style = "display: flex; justify-content: flex-start; padding-left: 34px;",
+          lapply(1:gridSize, function(col) {
+            div(
+              id = paste0("countColumn_", col),
+              class = "count-column",
+              style = "width: 40px; height: 40px; border: 1px solid #ccc; margin: 2px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;",
+              textOutput(paste0("countTextColumn_", col))
+            )
+          })
+        ),
+        div(
+          lapply(1:gridSize, function(row) {
+            div(
+              div(
+                div(
+                  id = paste0("countRow_", row),
+                  class = "count-column",
+                  style = "width: 40px; height: 40px; border: 1px solid #ccc; margin: 2px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;",
+                  textOutput(paste0("countText_", row))
+                ),
+                lapply(1:gridSize, function(col) {
+                  div(
+                    id = paste0("grid2_", row, "_", col),
+                    class = "clickable-box",
+                    style = ifelse(row <= nrow(values$grid2) && col <= ncol(values$grid2),
+                                   ifelse(values$grid2[row, col], "width: 40px; height: 40px; background-color: black; border: 1px solid #ccc; margin: 2px;", "width: 40px; height: 40px; background-color: #e0e0e0; border: 1px solid #ccc; margin: 2px;"),
+                                   "width: 40px; height: 40px; background-color: #e0e0e0; border: 1px solid #ccc; margin: 2px;"
+                    )
+                  )
+                }),
+                style = "display: flex; justify-content: flex-start;"
+              )
+            )
+          })
+        )
+      )
+    })
+
+    observe({
+      gridSize <- input$gridSize
+      columnSums <- colSums(values$grid2)
+
+      output$countColumnSum <- renderText({
+        paste(columnSums, collapse = " ")
+      })
+
+      lapply(    1:min(gridSize, nrow(values$grid2)), function(row) {
+        count <- sum(values$grid2[row, ])
+        output[[paste0("countText_", row)]] <- renderText(count)
+      })
+
+
+      lapply(1:min(gridSize, ncol(values$grid2)), function(col) {
+        output[[paste0("countTextColumn_", col)]] <- renderText(columnSums[col])
+      })
+
+    })
+
+    observeEvent(input$revealSolution, {
+      values$revealState <- !values$revealState
+    })
+
+    observeEvent(input$clickedBox, {
+      boxId <- input$clickedBox$id
+      isDark <- input$clickedBox$isDark
+      row_col <- strsplit(strsplit(boxId, "_")[[1]][2], "_")[[1]]
+      row <- as.numeric(row_col[1])
+      col <- as.numeric(row_col[2])
+
+      values$modifiedGrid[row, col] <- as.numeric(!isDark)
+      session$sendCustomMessage("changeColor", list(id = boxId, isDark = isDark))
+    })
+
+    #variable réactive pour le niveau de difficulté
+    currentDifficulty <- reactiveVal("Normal")
+
+    observeEvent(input$gridSize, {
+      gridSize <- input$gridSize
+      values$grid1 <- generateEmptyGrid(gridSize)
+      values$grid2 <- generateRandomGrid(gridSize)
+      values$modifiedGrid <- generateEmptyGrid(gridSize)
+      values$revealState <- FALSE
+      currentDifficulty("Normal")
+    })
+
+    observeEvent(input$hardMode, {
+      gridSize <- input$gridSize
+      values$grid2 <- matrix(sample(c(1,0,0), as.numeric(gridSize)^2, replace = TRUE), nrow = as.numeric(gridSize), ncol = as.numeric(gridSize))
+      values$grid1 <- generateEmptyGrid(gridSize)  # Réinitialiser la grille 1
+      values$modifiedGrid <- generateEmptyGrid(gridSize)  # Réinitialiser la grille modifiée
+      values$revealState <- FALSE
+      currentDifficulty("Difficile")
+
+      # Mettez à jour le rendu de la grille 1
+      output$gridOutput1 <- renderUI({
+        gridSize <- input$gridSize
+
+        lapply(1:gridSize, function(row) {
+          div(
+            div(
+              id = paste0("countTextColumnGrid1_", row),
+              class = "count-column",
+              style = "width: 40px; height: 40px; border: 1px solid #ccc; margin: 2px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;",
+              textOutput(paste0("countTextColumnGrid1_", row))
+            ),
+            lapply(1:gridSize, function(col) {
+              div(
+                id = paste0("grid1_", row, "_", col),
+                class = "clickable-box clickable-box-grid1",
+                style = sprintf(
+                  "width: 40px; height: 40px; background-color: %s; border: 1px solid #ccc; margin: 2px; display: flex; align-items: center; justify-content: center;",
+                  if (row <= nrow(values$grid1) && col <= ncol(values$grid1)) {
+                    ifelse(values$grid1[row, col] == 1, "black", "#e0e0e0")
+                  } else {
+                    "#e0e0e0"  # Valeur par défaut si l'indice est en dehors de la plage
+                  }
+                ),
+                ""
+              )
+            }),
+            style = "display: flex; justify-content: flex-start;"
+          )
+        })
+      })
+    })
+
+    observeEvent(input$easyMode, {
+      gridSize <- input$gridSize
+      values$grid2 <- matrix(sample(c(1,1,1,0), as.numeric(gridSize)^2, replace = TRUE), nrow = as.numeric(gridSize), ncol = as.numeric(gridSize))
+      values$grid1 <- generateEmptyGrid(gridSize)  # Réinitialiser la grille 1
+      values$modifiedGrid <- generateEmptyGrid(gridSize)  # Réinitialiser la grille modifiée
+      values$revealState <- FALSE
+      currentDifficulty("Facile")
+
+      # Mettez à jour le rendu de la grille 1
+      output$gridOutput1 <- renderUI({
+        gridSize <- input$gridSize
+
+        lapply(1:gridSize, function(row) {
+          div(
+            div(
+              id = paste0("countTextColumnGrid1_", row),
+              class = "count-column",
+              style = "width: 40px; height: 40px; border: 1px solid #ccc; margin: 2px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;",
+              textOutput(paste0("countTextColumnGrid1_", row))
+            ),
+            lapply(1:gridSize, function(col) {
+              div(
+                id = paste0("grid1_", row, "_", col),
+                class = "clickable-box clickable-box-grid1",
+                style = sprintf(
+                  "width: 40px; height: 40px; background-color: %s; border: 1px solid #ccc; margin: 2px; display: flex; align-items: center; justify-content: center;",
+                  if (row <= nrow(values$grid1) && col <= ncol(values$grid1)) {
+                    ifelse(values$grid1[row, col] == 1, "black", "#e0e0e0")
+                  } else {
+                    "#e0e0e0"  # Valeur par défaut si l'indice est en dehors de la plage
+                  }
+                ),
+                ""
+              )
+            }),
+            style = "display: flex; justify-content: flex-start;"
+          )
+        })
+      })
+    })
+
+
+    observeEvent(input$NormalMode, {
+      gridSize <- input$gridSize
+      values$grid2 <- generateRandomGrid(gridSize)
+      values$grid1 <- generateEmptyGrid(gridSize)
+      values$modifiedGrid <- generateEmptyGrid(gridSize)
+      values$revealState <- FALSE
+      currentDifficulty("Normal")
+
+      # Mettez à jour le rendu de la grille 1
+      output$gridOutput1 <- renderUI({
+        gridSize <- input$gridSize
+
+        lapply(1:gridSize, function(row) {
+          div(
+            div(
+              id = paste0("countTextColumnGrid1_", row),
+              class = "count-column",
+              style = "width: 40px; height: 40px; border: 1px solid #ccc; margin: 2px; background-color: #f0f0f0; display: flex; align-items: center; justify-content: center;",
+              textOutput(paste0("countTextColumnGrid1_", row))
+            ),
+            lapply(1:gridSize, function(col) {
+              div(
+                id = paste0("grid1_", row, "_", col),
+                class = "clickable-box clickable-box-grid1",
+                style = sprintf(
+                  "width: 40px; height: 40px; background-color: %s; border: 1px solid #ccc; margin: 2px; display: flex; align-items: center; justify-content: center;",
+                  if (row <= nrow(values$grid1) && col <= ncol(values$grid1)) {
+                    ifelse(values$grid1[row, col] == 1, "black", "#e0e0e0")
+                  } else {
+                    "#e0e0e0"  # Valeur par défaut si l'indice est en dehors de la plage
+                  }
+                ),
+                ""
+              )
+            }),
+            style = "display: flex; justify-content: flex-start;"
+          )
+        })
+      })
+    })
+
+
+    # Ajoutez une sortie pour afficher le niveau de difficulté
+    output$difficultyLevel <- renderText({
+      paste("Niveau : ", currentDifficulty())
+    })
+
+    observeEvent(input$toggleRules, {
+      session$sendCustomMessage("toggleRulesVisibility", list())
+    })
+  }
+  shinyApp(ui = ui, server = server)
+
+
+}
 
