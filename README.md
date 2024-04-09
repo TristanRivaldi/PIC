@@ -1,4 +1,4 @@
-# Picross
+# Picross  
 
 Bienvenue dans notre projet ! Ce projet est un package pour un jeu de picross. Assurez-vous d'avoir le package shiny installé.
 
